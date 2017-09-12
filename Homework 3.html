@@ -58,7 +58,7 @@
             background-color: #e7e7e7;
         }
 
-        #marker {
+        #red-marker {
             position: relative;
             top: 0;
             left: 0;
@@ -69,6 +69,19 @@
             border: solid darkred 1px;
             border-radius: 50%;
             background-color: red;
+        }
+
+        #blue-marker {
+            position: relative;
+            top: 0;
+            left: 0;
+            margin: 0;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            border: solid darkblue 1px;
+            border-radius: 50%;
+            background-color: blue;
         }
 
         .marker-off {
@@ -157,18 +170,35 @@
             "direction": undefined,
             "distance": undefined
         };
+
+        //Grid specifications.
+        const DEFAULT_ROW_QUANTITY = 10;
+        const DEFAULT_COLUMN_QUANTITY = 10;
+
+        const MAXIMUM_TOUCHES_ALLOWED = 1000000;
+
+        const DEFAULT_SPEED = 100;
+
         const EMPTY_GAME = {
             "parameters": {
-                "speed": undefined,
-                "rowQuantity": undefined,
-                "columnQuantity": undefined
+                "speed": DEFAULT_SPEED,
+                "rowQuantity": DEFAULT_ROW_QUANTITY,
+                "columnQuantity": DEFAULT_COLUMN_QUANTITY
             },
             "grid": undefined,
-            "marker": {
+            "redMarker": {
                 "position": {
                     "row": undefined,
                     "column": undefined
-                }
+                },
+                "touches": 0
+            },
+            "blueMarker": {
+                "position": {
+                    "row": undefined,
+                    "column": undefined
+                },
+                "touches": 0
             },
             "touches": 0,
             "results": {
@@ -179,14 +209,6 @@
                 "totalTouches": undefined
             }
         };
-
-        //Grid specifications.
-        const DEFAULT_ROW_QUANTITY = 10;
-        const DEFAULT_COLUMN_QUANTITY = 10;
-
-        const MAXIMUM_TOUCHES_ALLOWED = 1000000;
-
-        const DEFAULT_SPEED = 100;
 
         //ENUMS.
         //Direction Enum.
@@ -208,8 +230,13 @@
         const GAME_SUCCESS = true;
         const GAME_FAILURE = false;
 
+        //Marker Indicators
+        const RED = 0;
+        const BLUE = 1;
+
         //End Game Messages.
-        const GAME_SUCCESS_MESSAGE = "The marker is now in the correct position.";
+        const RED_MARKER_SUCCESS_MESSAGE = "The red marker is now in the correct position.";
+        const BLUE_MARKER_SUCCESS_MESSAGE = "The blue marker is now in the correct position.";
         const GAME_FAILURE_MESSAGE = "The game surpassed the maximum amount of turns allowed and failed to push the marker to the correct position.";
 
         //The global game object.
@@ -232,10 +259,10 @@
                 setupGame();
                 playGame().then(
                     () => {
-                    calculateResults();
-                printResults();
-            }
-            );
+                        calculateResults();
+                        printResults();
+                    }
+                );
             }
         }
 
@@ -352,7 +379,8 @@
         function setupGame() {
             createGrid(game.parameters.rowQuantity, game.parameters.columnQuantity);
             resetResults();
-            placeMarkerAndRecordTouchAt(game.parameters.rowQuantity - 1, 0);
+            placeMarkerAndRecordTouchAt(RED, game.parameters.rowQuantity - 1, 0);
+            placeMarkerAndRecordTouchAt(BLUE, 0, game.parameters.columnQuantity - 1);
         }
 
         /* Purpose: Resets the results table to the initial settings of the first frame of a running game.
@@ -456,9 +484,9 @@
          * • "column" - The column to place the marker and record the touch at.
          * Output: None.
          * Assumptions: Inputs are all whole numbers. */
-        function placeMarkerAndRecordTouchAt(row, column) {
-            placeMarkerAt(row, column);
-            recordTouchAt(row, column);
+        function placeMarkerAndRecordTouchAt(markerIndicator, row, column) {
+            placeMarkerAt(markerIndicator, row, column);
+            recordTouchAt(markerIndicator, row, column);
         }
 
         /* Purpose: Places the marker at the provided row and column.
@@ -467,12 +495,19 @@
          * • "column" - The column to place the marker at.
          * Output: None.
          * Assumptions: Inputs are all whole numbers. */
-        function placeMarkerAt(row, column) {
-            updateMarkerOnGrid(row, column);
+        function placeMarkerAt(markerIndicator, row, column) {
+            updateMarkerOnGrid(markerIndicator, row, column);
 
-            game.marker.position.row = row;
-            game.marker.position.column = column;
+            if (markerIndicator === RED) {
+                game.redMarker.position.row = row;
+                game.redMarker.position.column = column;
+            } else {
+                game.blueMarker.position.row = row;
+                game.blueMarker.position.column = column;
+            }
         }
+
+        //TODO Something isnt updating game.blueMarker.position beyond the intial call to the above function, thus it is always "undefined".
 
         /* Purpose: Updates the markers graphical position on the grid.
          * Inputs:
@@ -480,18 +515,22 @@
          * • "column" - The column to update the marker's position to.
          * Output: None.
          * Assumptions: */
-        function updateMarkerOnGrid(row, column) {
-            removeMarkerFromGrid();
-            placeMarkerOnGridAt(row, column);
+        function updateMarkerOnGrid(markerIndicator, row, column) {
+            removeMarkerFromGrid(markerIndicator);
+            placeMarkerOnGridAt(markerIndicator, row, column);
         }
 
         /* Purpose: Deletes the marker from the graphical grid.
          * Inputs: None.
          * Output: None.
          * Assumptions: #A. An HTML element with id "column-i-j" exists where i and j are the markers current row and column, respectively. Marker is actually on the grid. */
-        function removeMarkerFromGrid() {
-            if (markerIsOnGrid()) {
-                document.getElementById("column-" + game.marker.position.row + "-" + game.marker.position.column).innerHTML = "<div class=\"marker-off\"><p class=\"cell-content\">" + game.grid[game.marker.position.row][game.marker.position.column] + "</p></div>";
+        function removeMarkerFromGrid(markerIndicator) {
+            if (markerIsOnGrid(markerIndicator)) {
+                if (markerIndicator === RED) {
+                    document.getElementById("column-" + game.redMarker.position.row + "-" + game.redMarker.position.column).innerHTML = "<div class=\"marker-off\"><p class=\"cell-content\">" + game.grid[game.redMarker.position.row][game.redMarker.position.column] + "</p></div>";
+                } else {
+                    document.getElementById("column-" + game.blueMarker.position.row + "-" + game.blueMarker.position.column).innerHTML = "<div class=\"marker-off\"><p class=\"cell-content\">" + game.grid[game.blueMarker.position.row][game.blueMarker.position.column] + "</p></div>";
+                }
             }
         }
 
@@ -499,8 +538,12 @@
          * Inputs: None.
          * Output: A boolean indicating whether the marker is currently on the graphical grid.
          * Assumptions: #A. */
-        function markerIsOnGrid() {
-            return game.marker.position.row !== undefined && game.marker.position.column !== undefined;
+        function markerIsOnGrid(markerIndicator) {
+            if (markerIndicator === RED) {
+                return game.redMarker.position.row !== undefined && game.redMarker.position.column !== undefined;
+            } else {
+                return game.blueMarker.position.row !== undefined && game.blueMarker.position.column !== undefined;
+            }
         }
 
         /* Purpose: Put the marker on the graphical grid at the provided locaiton.
@@ -509,8 +552,17 @@
          * • "column" - The column to place the marker at.
          * Output: None.
          * Assumptions: #A. An HTML element with id "column-i-j" exists where i and j are the provided row and column, respectively. */
-        function placeMarkerOnGridAt(row, column) {
-            document.getElementById("column-" + row + "-" + column).innerHTML = "<div id=\"marker\"><p class='cell-content'>" + (game.grid[row][column] + 1) + "</p></div>";
+        function placeMarkerOnGridAt(markerIndicator, row, column) {
+            if (markerIndicator === RED) {
+                document.getElementById("column-" + row + "-" + column).innerHTML = "<div id=\"red-marker\"><p class='cell-content'>" + (game.grid[row][column] + 1) + "</p></div>";
+            } else {
+                try {
+                    document.getElementById("column-" + row + "-" + column).innerHTML = "<div id=\"blue-marker\"><p class='cell-content'>" + (game.grid[row][column] + 1) + "</p></div>";
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+
         }
 
         /* Purpose: Records the touch at the provided row and column, and also in the running total.
@@ -519,9 +571,10 @@
          * • "column" - The column to record the touch at.
          * Output: None.
          * Assumptions: Inputs are all whole numbers. */
-        function recordTouchAt(row, column) {
+        function recordTouchAt(markerIndicator, row, column) {
             incrementTotalTouches();
             incrementTouchCountAt(row, column);
+            incrementTotalTouchesForMarker(markerIndicator);
         }
 
         /* Purpose: Increments the game's total touches.
@@ -542,28 +595,44 @@
             game.grid[row][column]++;
         }
 
+        function incrementTotalTouchesForMarker(markerIndicator) {
+            if (markerIndicator === RED) {
+                game.redMarker.touches++;
+            } else {
+                game.blueMarker.touches++;
+            }
+        }
+
         /* Purpose: Plays the game based on the interval the user entered under the "speed" parameter.
          * Inputs: None.
          * Output: None.
          * Assumptions: #A. */
         function playGame() {
+            let currentTurnMarkerIndicator = RED;
+
             //I use a promise here because I am running a process for an indefinite amount of time and the statements following it in the calling function need to wait until completion.
-            //This is not traditional JavaScript because it is now an asynchronous process and as such, I need a way to signify when the async code is completed. This is the purpose of the promise.
+            //This is not traditional JavaScript because it is now an asynchronous process and as such, I need a way to signify when the async code is completed. Such is the purpose of the promise.
             return new Promise(
                 (resolve, reject) => {
-                interval = setInterval(
-                    () => {
-                    if (shouldContinuePlayingGame()) {
-                continuePlayingGame();
-            } else {
-                clearInterval(interval);
-                resolve();
-            }
-        },
-            game.parameters.speed
-        )
-        }
-        )
+                    interval = setInterval(
+                        () => {
+                            if (shouldContinuePlayingGame()) {
+                                continuePlayingGame(currentTurnMarkerIndicator);
+
+                                if (currentTurnMarkerIndicator === RED) {
+                                    currentTurnMarkerIndicator = BLUE;
+                                } else {
+                                    currentTurnMarkerIndicator = RED;
+                                }
+                            } else {
+                                clearInterval(interval);
+                                resolve();
+                            }
+                        },
+                        game.parameters.speed
+                    )
+                }
+            )
         }
 
         /* Purpose: Determines whether the game is over or if it should continue playing. This is determined by checking if the win condition (marker is in winning position) or lose condition (too many moves) has been met.
@@ -579,31 +648,39 @@
          * Output: A boolean indicating whether the game has been won or not.
          * Assumptions: #A. */
         function gameIsWon() {
-            return markerIsInWinningPosition();
+            return markerIsInWinningPosition(RED) || markerIsInWinningPosition(BLUE);
         }
 
         /* Purpose: Determines whether the marker is in the winning position or not.
          * Inputs: None.
          * Output: A boolean indicating whether the marker is in the winning position or not.
          * Assumptions: #A. */
-        function markerIsInWinningPosition() {
-            return markerIsInWinningRow() && markerIsInWinningColumn();
+        function markerIsInWinningPosition(markerIndicator) {
+            return markerIsInWinningRow(markerIndicator) && markerIsInWinningColumn(markerIndicator);
         }
 
         /* Purpose: Determines whether the marker is in the winning row or not.
          * Inputs: None.
          * Output: A boolean indicating whether the marker is in the winning row or not.
          * Assumptions: #A. */
-        function markerIsInWinningRow() {
-            return game.marker.position.row === 0;
+        function markerIsInWinningRow(markerIndicator) {
+            if (markerIndicator === RED) {
+                return game.redMarker.position.row === 0;
+            } else {
+                return game.blueMarker.position.row === game.parameters.rowQuantity - 1;
+            }
         }
 
         /* Purpose: Determines whether the marker is in the winning column or not.
          * Inputs: None.
          * Output: A boolean indicating whether the marker is in the winning column or not.
          * Assumptions: #A. */
-        function markerIsInWinningColumn() {
-            return game.marker.position.column === game.parameters.columnQuantity - 1;
+        function markerIsInWinningColumn(markerIndicator) {
+            if (markerIndicator === RED) {
+                return game.redMarker.position.column === game.parameters.columnQuantity - 1;
+            } else {
+                return game.blueMarker.position.column === game.parameters.columnQuantity - 1;
+            }
         }
 
         /* Purpose: Determines whether the game has surpassed the maximum amount of touches or not.
@@ -618,18 +695,25 @@
          * Inputs: None.
          * Output: None.
          * Assumptions: #A. */
-        function continuePlayingGame() {
+        function continuePlayingGame(markerIndicator) {
             let move = generateRandomMove();
-            let originalMarkerLocation = deepCopy(game.marker.position);
+            let originalMarkerLocation;
+            if (markerIndicator === RED) {
+                console.log(game.redMarker);
+                originalMarkerLocation = deepCopy(game.redMarker.position);
+            } else {
+                console.log(game.blueMarker);
+                originalMarkerLocation = deepCopy(game.blueMarker.position);
+            }
 
-            if (thisMoveDoesNotPutMarkerOutsideOfGrid(move)) {
-                placeMarkerAtPositionFromMove(move);
-                updateLastMoveDescriptionTable(move, true);
+            if (thisMoveDoesNotPutMarkerOutsideOfGrid(markerIndicator, move)) {
+                placeMarkerAtPositionFromMove(markerIndicator, move);
+                updateLastMoveDescriptionTable(markerIndicator, move, true);
                 calculateRunningResults();
                 printRunningResults();
             } else {
-                placeMarkerAtOriginalLocation(originalMarkerLocation);
-                updateLastMoveDescriptionTable(move, false);
+                placeMarkerAtOriginalLocation(markerIndicator, originalMarkerLocation);
+                updateLastMoveDescriptionTable(markerIndicator, move, false);
                 calculateRunningResults();
                 printRunningResults();
             }
@@ -641,12 +725,16 @@
          * • "isValidMove" - Whether or not that move would've put the marker outside of the grid.
          * Output: None.
          * Assumptions: #B. An HTML element with id "last-move-description-wrapper" exists. */
-        function updateLastMoveDescriptionTable(move, isValidMove) {
+        function updateLastMoveDescriptionTable(markerIndicator, move, isValidMove) {
             document.getElementById("last-move-description-wrapper").innerHTML = `
                  <table id="last-move-description-table" class="center-me" align="center">
                     <tr>
                         <th>Statistic</th>
                         <th>Value</th>
+                    </tr>
+                    <tr>
+                        <td>Marker</td>
+                        <td>` + (markerIndicator === RED ? "Red" : "Blue") + `</td>
                     </tr>
                     <tr>
                         <td>Direction</td>
@@ -729,8 +817,8 @@
          * Inputs: "move" - The move object containing both a direction and a distance.
          * Output: A boolean indicating whether the provided move would put the marker outside of the grid or not.
          * Assumptions: #A. #B. */
-        function thisMoveDoesNotPutMarkerOutsideOfGrid(move) {
-            let potentialNewMarkerPosition = getMarkerPositionAfterThisMove(move);
+        function thisMoveDoesNotPutMarkerOutsideOfGrid(markerIndicator, move) {
+            let potentialNewMarkerPosition = getMarkerPositionAfterThisMove(markerIndicator, move);
             return positionIsWithinGrid(potentialNewMarkerPosition);
         }
 
@@ -778,28 +866,50 @@
          * Inputs: "move" - The move object containing both a direction and a distance.
          * Output: A position object containing a row and column fields which correspond to the position the marker would be in, should the provided move object be applied to it.
          * Assumptions: #A. #B. Failure to adhere to assumption #B leads to the default case of the switch statement executing which leads to an error being thrown. */
-        function getMarkerPositionAfterThisMove(move) {
+        function getMarkerPositionAfterThisMove(markerIndicator, move) {
             let markerPositionAfterThisMove = deepCopy(EMPTY_POSITION);
-
-            switch (move.direction) {
-                case DIRECTION_LEFT: //If the move direction is up...
-                    markerPositionAfterThisMove.row = game.marker.position.row;
-                    markerPositionAfterThisMove.column = game.marker.position.column - getMoveDistance(move); //Subtract across the columns to go left.
-                    break;
-                case DIRECTION_UP: //If the move direction is left...
-                    markerPositionAfterThisMove.row = game.marker.position.row - getMoveDistance(move); //Subtract across the rows to go up.
-                    markerPositionAfterThisMove.column = game.marker.position.column;
-                    break;
-                case DIRECTION_RIGHT: //If the move direction is down...
-                    markerPositionAfterThisMove.row = game.marker.position.row;
-                    markerPositionAfterThisMove.column = game.marker.position.column + getMoveDistance(move); //Advance across the columns to go right.
-                    break;
-                case DIRECTION_DOWN: //If the move direction is right...
-                    markerPositionAfterThisMove.row = game.marker.position.row + getMoveDistance(move); //Advance across the rows to go down.
-                    markerPositionAfterThisMove.column = game.marker.position.column;
-                    break;
-                default:
-                    throw new Error("Unrecognized move direction encountered: \"" + move.direction + "\".");
+            if (markerIndicator === RED) {
+                switch (move.direction) {
+                    case DIRECTION_LEFT: //If the move direction is up...
+                        markerPositionAfterThisMove.row = game.redMarker.position.row;
+                        markerPositionAfterThisMove.column = game.redMarker.position.column - getMoveDistance(move); //Subtract across the columns to go left.
+                        break;
+                    case DIRECTION_UP: //If the move direction is left...
+                        markerPositionAfterThisMove.row = game.redMarker.position.row - getMoveDistance(move); //Subtract across the rows to go up.
+                        markerPositionAfterThisMove.column = game.redMarker.position.column;
+                        break;
+                    case DIRECTION_RIGHT: //If the move direction is down...
+                        markerPositionAfterThisMove.row = game.redMarker.position.row;
+                        markerPositionAfterThisMove.column = game.redMarker.position.column + getMoveDistance(move); //Advance across the columns to go right.
+                        break;
+                    case DIRECTION_DOWN: //If the move direction is right...
+                        markerPositionAfterThisMove.row = game.redMarker.position.row + getMoveDistance(move); //Advance across the rows to go down.
+                        markerPositionAfterThisMove.column = game.redMarker.position.column;
+                        break;
+                    default:
+                        throw new Error("Unrecognized move direction encountered: \"" + move.direction + "\".");
+                }
+            } else {
+                switch (move.direction) {
+                    case DIRECTION_LEFT: //If the move direction is up...
+                        markerPositionAfterThisMove.row = game.blueMarker.position.row;
+                        markerPositionAfterThisMove.column = game.blueMarker.position.column - getMoveDistance(move); //Subtract across the columns to go left.
+                        break;
+                    case DIRECTION_UP: //If the move direction is left...
+                        markerPositionAfterThisMove.row = game.blueMarker.position.row - getMoveDistance(move); //Subtract across the rows to go up.
+                        markerPositionAfterThisMove.column = game.blueMarker.position.column;
+                        break;
+                    case DIRECTION_RIGHT: //If the move direction is down...
+                        markerPositionAfterThisMove.row = game.blueMarker.position.row;
+                        markerPositionAfterThisMove.column = game.blueMarker.position.column + getMoveDistance(move); //Advance across the columns to go right.
+                        break;
+                    case DIRECTION_DOWN: //If the move direction is right...
+                        markerPositionAfterThisMove.row = game.blueMarker.position.row + getMoveDistance(move); //Advance across the rows to go down.
+                        markerPositionAfterThisMove.column = game.blueMarker.position.column;
+                        break;
+                    default:
+                        throw new Error("Unrecognized move direction encounteblue: \"" + move.direction + "\".");
+                }
             }
 
             return markerPositionAfterThisMove;
@@ -833,9 +943,9 @@
          * Inputs: "move" - The move object containing both a direction and a distance.
          * Output: None.
          * Assumptions: #B. The function "getMarkerPositionAfterThisMove" returns a valid position object, resembling the object described in #C. */
-        function placeMarkerAtPositionFromMove(move) {
-            let newMarkerPosition = getMarkerPositionAfterThisMove(move);
-            placeMarkerAndRecordTouchAt(newMarkerPosition.row, newMarkerPosition.column);
+        function placeMarkerAtPositionFromMove(markerIndicator, move) {
+            let newMarkerPosition = getMarkerPositionAfterThisMove(markerIndicator, move);
+            placeMarkerAndRecordTouchAt(markerIndicator, newMarkerPosition.row, newMarkerPosition.column);
         }
 
         /* Purpose: Puts the marker at its original position because the move generated earlier would put the marker off the grid.
@@ -935,15 +1045,15 @@
 
             game.grid.forEach( //For each row in the grid...
                 (row) => {
-                row.forEach( //For each column in this row...
-                (touchesInCell) => {
-                if (touchesInCell > maximumTouchedInGrid) { //If the touches in this cell is more than the maximum recorded...
-                maximumTouchedInGrid = touchesInCell; //The touches in this cell is the maximum, record that.
-            }
-        }
-        );
-        }
-        );
+                    row.forEach( //For each column in this row...
+                        (touchesInCell) => {
+                            if (touchesInCell > maximumTouchedInGrid) { //If the touches in this cell is more than the maximum recorded...
+                                maximumTouchedInGrid = touchesInCell; //The touches in this cell is the maximum, record that.
+                            }
+                        }
+                    );
+                }
+            );
 
             return maximumTouchedInGrid;
         }
@@ -965,15 +1075,15 @@
 
             game.grid.forEach( //For each row in the grid...
                 (row) => {
-                row.forEach( //For each column in this row...
-                (touchesInCell) => {
-                if (touchesInCell < minimumTouchedInGrid) { //If the touches in this cell is less than the minimum recorded...
-                minimumTouchedInGrid = touchesInCell; //The touches in this cell is the minimum, record that.
-            }
-        }
-        );
-        }
-        );
+                    row.forEach( //For each column in this row...
+                        (touchesInCell) => {
+                            if (touchesInCell < minimumTouchedInGrid) { //If the touches in this cell is less than the minimum recorded...
+                                minimumTouchedInGrid = touchesInCell; //The touches in this cell is the minimum, record that.
+                            }
+                        }
+                    );
+                }
+            );
 
             return minimumTouchedInGrid;
         }
@@ -995,13 +1105,13 @@
 
             game.grid.forEach( //For each row in the grid...
                 (row) => {
-                row.forEach( //For each column in this row...
-                (touchesInCell) => {
-                totalTouches += touchesInCell; //Add the touches in this cell to the total touches recorded so far.
-        }
-        );
-        }
-        );
+                    row.forEach( //For each column in this row...
+                        (touchesInCell) => {
+                            totalTouches += touchesInCell; //Add the touches in this cell to the total touches recorded so far.
+                        }
+                    );
+                }
+            );
 
             return (totalTouches / (game.parameters.rowQuantity * game.parameters.columnQuantity)).toFixed(2); //The average touches per cell is the total touches across all cells divided by how many cells there are.
         }
@@ -1028,7 +1138,7 @@
                         </tr>
                         <tr>
                             <td>Outcome</td>
-                            <td>` + (game.results.outcome === GAME_SUCCESS ? GAME_SUCCESS_MESSAGE : GAME_FAILURE_MESSAGE) + `</td>
+                            <td>` + (game.results.outcome === GAME_SUCCESS ? RED_MARKER_SUCCESS_MESSAGE : GAME_FAILURE_MESSAGE) + `</td>
                         </tr>
                         <tr>
                             <td>Maximum Touches in a Cell</td>
