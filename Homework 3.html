@@ -175,7 +175,7 @@
         const DEFAULT_ROW_QUANTITY = 10;
         const DEFAULT_COLUMN_QUANTITY = 10;
 
-        const MAXIMUM_TOUCHES_ALLOWED = 1000000;
+        const MAXIMUM_TOUCHES_ALLOWED_PER_MARKER = 1000000;
 
         const DEFAULT_SPEED = 100;
 
@@ -206,7 +206,9 @@
                 "minimumTouches": undefined,
                 "averageTouchesPerCell": undefined,
                 "outcome": undefined,
-                "totalTouches": undefined
+                "totalTouches": undefined,
+                "quantityRedSentHome": 0,
+                "quantityBlueSentHome": 0
             }
         };
 
@@ -227,8 +229,9 @@
         const DISTANCE_QUANTITY = DISTANCES.length;
 
         //End Game Enum.
-        const GAME_SUCCESS = true;
-        const GAME_FAILURE = false;
+        const GAME_FAILURE = 0;
+        const GAME_SUCCESS_RED = 1;
+        const GAME_SUCCESS_BLUE = 2;
 
         //Marker Indicators
         const RED = 0;
@@ -501,13 +504,27 @@
             if (markerIndicator === RED) {
                 game.redMarker.position.row = row;
                 game.redMarker.position.column = column;
+
+                if (markersAreColliding()) {
+                    game.results.quantityBlueSentHome++;
+                    placeMarkerAndRecordTouchAt(BLUE, 0, game.parameters.columnQuantity - 1);
+                    updateMarkerOnGrid(RED, game.redMarker.position.row, game.redMarker.position.column);
+                }
             } else {
                 game.blueMarker.position.row = row;
                 game.blueMarker.position.column = column;
+
+                if (markersAreColliding()) {
+                    game.results.quantityRedSentHome++;
+                    placeMarkerAndRecordTouchAt(RED, game.parameters.rowQuantity - 1, 0);
+                    updateMarkerOnGrid(BLUE, game.blueMarker.position.row, game.blueMarker.position.column);
+                }
             }
         }
 
-        //TODO Something isnt updating game.blueMarker.position beyond the intial call to the above function, thus it is always "undefined".
+        function markersAreColliding() {
+            return game.redMarker.position.row === game.blueMarker.position.row && game.redMarker.position.column === game.blueMarker.position.column
+        }
 
         /* Purpose: Updates the markers graphical position on the grid.
          * Inputs:
@@ -546,7 +563,7 @@
             }
         }
 
-        /* Purpose: Put the marker on the graphical grid at the provided locaiton.
+        /* Purpose: Put the marker on the graphical grid at the provided location.
          * Inputs:
          * • "row" - The row to place the marker at.
          * • "column" - The column to place the marker at.
@@ -556,13 +573,8 @@
             if (markerIndicator === RED) {
                 document.getElementById("column-" + row + "-" + column).innerHTML = "<div id=\"red-marker\"><p class='cell-content'>" + (game.grid[row][column] + 1) + "</p></div>";
             } else {
-                try {
-                    document.getElementById("column-" + row + "-" + column).innerHTML = "<div id=\"blue-marker\"><p class='cell-content'>" + (game.grid[row][column] + 1) + "</p></div>";
-                } catch (e) {
-                    console.error(e);
-                }
+                document.getElementById("column-" + row + "-" + column).innerHTML = "<div id=\"blue-marker\"><p class='cell-content'>" + (game.grid[row][column] + 1) + "</p></div>";
             }
-
         }
 
         /* Purpose: Records the touch at the provided row and column, and also in the running total.
@@ -688,7 +700,7 @@
          * Output: A boolean indicating whether the game has surpassed the maximum amount of touches or not.
          * Assumptions: #A. */
         function gameIsBeyondMaximumTouches() {
-            return game.touches >= MAXIMUM_TOUCHES_ALLOWED;
+            return game.touches >= 2 * MAXIMUM_TOUCHES_ALLOWED_PER_MARKER;
         }
 
         /* Purpose: Run the game through another iteration. Each iteration is composed of generating a move, recording the marker's original position, determining if the generated move is valid, and moving the marker accordingly.
@@ -699,24 +711,20 @@
             let move = generateRandomMove();
             let originalMarkerLocation;
             if (markerIndicator === RED) {
-                console.log(game.redMarker);
                 originalMarkerLocation = deepCopy(game.redMarker.position);
             } else {
-                console.log(game.blueMarker);
                 originalMarkerLocation = deepCopy(game.blueMarker.position);
             }
 
             if (thisMoveDoesNotPutMarkerOutsideOfGrid(markerIndicator, move)) {
                 placeMarkerAtPositionFromMove(markerIndicator, move);
                 updateLastMoveDescriptionTable(markerIndicator, move, true);
-                calculateRunningResults();
-                printRunningResults();
             } else {
                 placeMarkerAtOriginalLocation(markerIndicator, originalMarkerLocation);
                 updateLastMoveDescriptionTable(markerIndicator, move, false);
-                calculateRunningResults();
-                printRunningResults();
             }
+            calculateRunningResults();
+            printRunningResults();
         }
 
         /* Purpose: Update the last move description table with details about the last move.
@@ -952,8 +960,8 @@
          * Inputs: "originalMarkerLocation" - A position object containing the original position of the marker before a move is executed.
          * Output: None.
          * Assumptions: "originalMarkerLocation" resembles the object described in #C. */
-        function placeMarkerAtOriginalLocation(originalMarkerLocation) {
-            placeMarkerAndRecordTouchAt(originalMarkerLocation.row, originalMarkerLocation.column);
+        function placeMarkerAtOriginalLocation(markerIndicator, originalMarkerLocation) {
+            placeMarkerAndRecordTouchAt(markerIndicator, originalMarkerLocation.row, originalMarkerLocation.column);
         }
 
         /* Purpose: Calculates the results of the game and stores them in the game object.
@@ -995,9 +1003,24 @@
                             <td>Average Touches per Cell</td>
                             <td>` + game.results.averageTouchesPerCell + `</td>
                         </tr>
+                        <td>Total Red Touches</td>
+                            <td>` + game.redMarker.touches + `</td>
+                        </tr>
+                        <tr>
+                            <td>Total Blue Touches</td>
+                            <td>` + game.blueMarker.touches + `</td>
+                        </tr>
                         <tr>
                             <td>Total Touches</td>
                             <td>` + game.results.totalTouches + `</td>
+                        </tr>
+                        <tr>
+                            <td># of times Red marker sent home</td>
+                            <td>` + game.results.quantityRedSentHome + `</td>
+                        </tr>
+                        <tr>
+                            <td># of times Blue marker sent home</td>
+                            <td>` + game.results.quantityBlueSentHome + `</td>
                         </tr>
                     </table>
             `;
@@ -1020,7 +1043,11 @@
          * Assumptions: #A. The game has either reached a winning condition or has surpassed the maximum amount of touches allowed. Failure to adhere to the previous assumption leads to an error being thrown. */
         function calculateOutcome() {
             if (gameIsWon()) {
-                game.results.outcome = GAME_SUCCESS;
+                if (markerIsInWinningPosition(RED)) {
+                    game.results.outcome = GAME_SUCCESS_RED;
+                } else {
+                    game.results.outcome = GAME_SUCCESS_BLUE;
+                }
             } else if (gameIsBeyondMaximumTouches()) {
                 game.results.outcome = GAME_FAILURE;
             } else {
@@ -1071,7 +1098,7 @@
          * Output: The quantity of touches in the cell that has the least touches.
          * Assumptions: #A. */
         function findMinimumTouchesInGrid() {
-            let minimumTouchedInGrid = MAXIMUM_TOUCHES_ALLOWED;
+            let minimumTouchedInGrid = MAXIMUM_TOUCHES_ALLOWED_PER_MARKER;
 
             game.grid.forEach( //For each row in the grid...
                 (row) => {
@@ -1129,7 +1156,6 @@
          * Output: None.
          * Assumptions: An HTML element with id "results" exists. If the game has not been run these values will all be undefined. */
         function printResults() {
-            console.log(game.grid)
             document.getElementById("results").innerHTML = `
                     <table id="results-table" class="center-me" align="center">
                         <tr>
@@ -1138,7 +1164,7 @@
                         </tr>
                         <tr>
                             <td>Outcome</td>
-                            <td>` + (game.results.outcome === GAME_SUCCESS ? RED_MARKER_SUCCESS_MESSAGE : GAME_FAILURE_MESSAGE) + `</td>
+                            <td>` + (game.results.outcome === GAME_SUCCESS_RED ? RED_MARKER_SUCCESS_MESSAGE : (game.results.outcome === GAME_SUCCESS_BLUE ? BLUE_MARKER_SUCCESS_MESSAGE : GAME_FAILURE_MESSAGE)) + `</td>
                         </tr>
                         <tr>
                             <td>Maximum Touches in a Cell</td>
@@ -1152,9 +1178,24 @@
                             <td>Average Touches per Cell</td>
                             <td>` + game.results.averageTouchesPerCell + `</td>
                         </tr>
+                        <td>Total Red Touches</td>
+                            <td>` + game.redMarker.touches + `</td>
+                        </tr>
+                        <tr>
+                            <td>Total Blue Touches</td>
+                            <td>` + game.blueMarker.touches + `</td>
+                        </tr>
                         <tr>
                             <td>Total Touches</td>
                             <td>` + game.results.totalTouches + `</td>
+                        </tr>
+                        <tr>
+                            <td># of times Red marker sent home</td>
+                            <td>` + game.results.quantityRedSentHome + `</td>
+                        </tr>
+                        <tr>
+                            <td># of times Blue marker sent home</td>
+                            <td>` + game.results.quantityBlueSentHome + `</td>
                         </tr>
                     </table>
             `;
@@ -1235,7 +1276,23 @@
                     <td></td>
                 </tr>
                 <tr>
+                    <td>Total Red Touches</td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td>Total Blue Touches</td>
+                    <td></td>
+                </tr>
+                <tr>
                     <td>Total Touches</td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td># of times Red marker sent home</td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td># of times Blue marker sent home</td>
                     <td></td>
                 </tr>
             </table>
